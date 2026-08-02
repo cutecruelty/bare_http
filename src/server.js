@@ -1,3 +1,5 @@
+const { registerRoute, handleRequest } = require("./router.js");
+
 const http = require("node:http");
 
 const PORT = 3000;

@@ -1,3 +1,6 @@
+const { parseUrl, matchPath } = require("./url.js");
+const { runHandlers } = require("./middleware.js");
+
 const routes = {
   GET: [],
   POST: [],
@@ -6,11 +9,12 @@ const routes = {
   PATCH: [],
 };
 
-function registerRoute(method, path, handler) {
+function registerRoute(method, path, ...handlers) {
   if (
     typeof method !== "string" ||
     typeof path !== "string" ||
-    typeof handler !== "function"
+    handlers.length === 0 ||
+    handlers.some((handler) => typeof handler !== "function")
   ) {
     throw new Error("invalid arguments to registerRoute");
   }
@@ -20,14 +24,28 @@ function registerRoute(method, path, handler) {
   if (!routes[normalizedMethod]) {
     throw new Error(`unsupported method: ${method}!`);
   }
-  routes[normalizedMethod].push({ path, handler });
+  routes[normalizedMethod].push({ path, handlers });
 }
 
 function handleRequest(req, res) {
-  const match = routes[req.method].find((route) => route.path === req.url);
+  const { path, query } = parseUrl(req.url);
+
+  let match = null;
+  let params = null;
+
+  for (const route of routes[req.method] || []) {
+    const result = matchPath(route.path, path);
+    if (result !== null) {
+      match = route;
+      params = result;
+      break;
+    }
+  }
 
   if (match) {
-    match.handler(req, res);
+    req.params = params;
+    req.query = query;
+    runHandlers(match.handlers, req, res);
   } else {
     res.writeHead(404);
     res.end("Not found!");
